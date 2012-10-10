@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/security" xmlns:beans="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+           http://www.springframework.org/schema/security
+           http://www.springframework.org/schema/security/spring-security-3.1.xsd">
+
+
+	<global-method-security pre-post-annotations="enabled" />
+
+	<http pattern="/static/**" security="none" />
+	<http pattern="/loggedout.jsp" security="none" />
+
+	<http use-expressions="true" entry-point-ref="casEntryPoint">
+		<custom-filter position="CAS_FILTER" ref="casFilter" />
+		<custom-filter before="CAS_FILTER" ref="singleLogoutFilter" />
+		<custom-filter before="LOGOUT_FILTER" ref="requestSingleLogoutFilter" />
+		<custom-filter position="LOGOUT_FILTER" ref="logoutFilter" />
+		<custom-filter position="LAST" ref="groupAuthFilter" />
+
+		<intercept-url pattern="/safe**" access="hasRole('ROLE_ADMIN')" />
+		<intercept-url pattern="/login**" access="hasRole('ROLE_USER')" />
+		<intercept-url pattern="/**" access="permitAll" />
+
+		<form-login />
+	</http>
+
+	<!-- Group authentication filter -->
+	<beans:bean id="groupAuthFilter" class="net.molchat.web.spring.GroupAuthFilter">
+		<!-- optional -->
+		<beans:property name="authCookieName" value="AUTH_COOKIE" />
+		<!-- optional -->
+		<beans:property name="processSubdomains" value="true" />
+	</beans:bean>
+
+	<!-- Add additional logout handler to a standard logout filter -->
+	<beans:bean id="logoutFilter" class="org.springframework.security.web.authentication.logout.LogoutFilter">
+		<beans:constructor-arg index="0" value="/cas-logout.jsp" />
+		<beans:constructor-arg index="1">
+			<beans:list>
+				<beans:ref bean="securityContextLogoutHandler" />
+				<beans:ref bean="groupAuthLogoutHandler" />
+			</beans:list>
+		</beans:constructor-arg>
+	</beans:bean>
+
+	<beans:bean id="securityContextLogoutHandler" class="org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler" />
+
+	<beans:bean id="groupAuthLogoutHandler" class="net.molchat.web.spring.GroupAuthLogoutHandler">
+		<beans:property name="authCookieName" value="AUTH_COOKIE" />
+	</beans:bean>
+
+
+	<!-- CAS -->
+	<beans:bean id="serviceProperties" class="org.springframework.security.cas.ServiceProperties">
+		<beans:property name="service" value="https://localhost.com:8443/app02/j_spring_cas_security_check" />
+		<beans:property name="sendRenew" value="false" />
+	</beans:bean>
+
+	<beans:bean id="casFilter" class="org.springframework.security.cas.web.CasAuthenticationFilter">
+		<beans:property name="authenticationManager" ref="authenticationManager" />
+	</beans:bean>
+
+	<beans:bean id="casEntryPoint" class="org.springframework.security.cas.web.CasAuthenticationEntryPoint">
+		<beans:property name="loginUrl" value="https://localhost.com:8444/cas/login" />
+		<beans:property name="serviceProperties" ref="serviceProperties" />
+	</beans:bean>
+
+	<authentication-manager alias="authenticationManager">
+		<authentication-provider ref="casAuthenticationProvider" />
+	</authentication-manager>
+
+	<beans:bean id="casAuthenticationProvider" class="org.springframework.security.cas.authentication.CasAuthenticationProvider">
+		<beans:property name="authenticationUserDetailsService">
+			<beans:bean class="org.springframework.security.core.userdetails.UserDetailsByNameServiceWrapper">
+				<beans:constructor-arg ref="userService" />
+			</beans:bean>
+		</beans:property>
+		<beans:property name="serviceProperties" ref="serviceProperties" />
+		<beans:property name="ticketValidator">
+			<beans:bean class="org.jasig.cas.client.validation.Cas20ServiceTicketValidator">
+				<beans:constructor-arg index="0" value="https://localhost.com:8444/cas" />
+			</beans:bean>
+		</beans:property>
+		<beans:property name="key" value="an_id_for_this_auth_provider_only" />
+	</beans:bean>
+
+	<!-- CAS logout -->
+	<!-- see http://static.springsource.org/spring-security/site/docs/3.1.x/reference/cas.html -->
+	<beans:bean id="singleLogoutFilter" class="org.jasig.cas.client.session.SingleSignOutFilter" />
+
+	<!-- This filter redirects to the CAS Server to signal Single Logout should be performed -->
+	<beans:bean id="requestSingleLogoutFilter" class="org.springframework.security.web.authentication.logout.LogoutFilter">
+		<beans:constructor-arg value="https://localhost.com:8444/cas/logout" />
+		<beans:constructor-arg>
+			<beans:bean class="org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler" />
+		</beans:constructor-arg>
+		<beans:property name="filterProcessesUrl" value="/j_spring_cas_security_logout" />
+	</beans:bean>
+
+	<!-- In-memory user table -->
+	<user-service id="userService">
+		<user name="joe" password="notUsed" authorities="ROLE_USER,ROLE_ADMIN" />
+		<user name="sam" password="notUsed" authorities="ROLE_ADMIN" />
+		<user name="bill" password="notUsed" authorities="ROLE_USER" />
+	</user-service>
+
+</beans:beans>
+
