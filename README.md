@@ -29,3 +29,9 @@ Just see the code and feel free to copy-paste if needed.
 
 * click Logout link
 * return to any page on any application - you are not authenticated now
+
+## How it works
+
+1. While user browses non-protected applications pages, there is no CAS requests at all, doesn't matter if such user is authenticated or not at the moment.
+2. When user authenticates by any application, this application sets domain-wide "Authenticated=true" cookie.
+3. When any other application sees this cookie, it starts standard authentication process, does not matter if a protected or unprotecred page is requested.
